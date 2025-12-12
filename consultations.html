@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>相談記録一覧</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+    <style>
+        .support-badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .support-needed {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .support-not-needed {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: #fff3e0;
+            color: #e65100;
+        }
+
+        .status-reviewed {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .action-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .btn-mark-reviewed {
+            background: #2196f3;
+            color: white;
+        }
+
+        .btn-mark-reviewed:hover {
+            background: #1976d2;
+        }
+
+        .btn-mark-pending {
+            background: #fff3e0;
+            color: #e65100;
+            border: 1px solid #e65100;
+        }
+
+        .btn-mark-pending:hover {
+            background: #ffe0b2;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar bg-primary navbar-expand-lg" data-bs-theme="dark">
+        <div class="container-fluid">
+            <div class="navbar-brand">おやこノート管理画面</div>
+            <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item">
+                    <a class="nav-link active" aria-current="page" href="userlist.html">登録ユーザ</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" aria-current="page" href="consultations.html">相談記録</a>
+                </li>
+                </ul>
+                <button class="btn btn-danger" onclick="logout()">ログアウト</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="bg-white p-3 rounded shadow-sm mb-4 d-flex gap-2 flex-wrap">
+            <button class="btn btn-outline-secondary filter-btn active" onclick="filterBy('all')">すべて</button>
+            <button class="btn btn-outline-secondary filter-btn" onclick="filterBy('needs_support')">心理的相談</button>
+            <button class="btn btn-outline-secondary filter-btn" onclick="filterBy('no_support')">その他相談</button>
+            <button class="btn btn-outline-secondary filter-btn" onclick="filterBy('pending')">未確認</button>
+        </div>
+
+        <div class="d-grid gap-3" id="consultationsList">
+            <div class="text-center py-5 px-3 text-secondary">読み込み中...</div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <script>
+        if (sessionStorage.getItem('staffLoggedIn') !== 'true') {
+            window.location.href = 'index.html';
+        }
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyC0DOxLZDkCkFA3y0XV63_ljbkams0HFWc",
+            authDomain: "oyakonote-c766a.firebaseapp.com",
+            projectId: "oyakonote-c766a"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        let allRecords = [];
+        let currentFilter = 'all';
+
+        function logout() {
+            firebase.auth().signOut();
+            sessionStorage.clear();
+            window.location.href = 'index.html';
+        }
+
+        async function loadConsultations() {
+            const container = document.getElementById('consultationsList');
+            container.innerHTML = '<div class="text-center py-5 px-3 text-secondary">読み込み中...</div>';
+
+            try {
+                const snapshot = await db.collection('staff_consultation_records').get();
+
+                allRecords = snapshot.docs
+                    .map(doc => ({ id: doc.id, ...doc.data() }))
+                    .sort((a, b) => b.date.toMillis() - a.date.toMillis());
+
+                displayConsultations();
+            } catch (error) {
+                console.error('Error loading consultations:', error);
+                container.innerHTML = '<div class="text-center py-5 px-3 text-secondary">エラーが発生しました</div>';
+            }
+        }
+
+        function displayConsultations() {
+            const container = document.getElementById('consultationsList');
+            
+            let filtered = allRecords;
+            if (currentFilter === 'needs_support') {
+                filtered = allRecords.filter(r => r.needsSupport);
+            } else if (currentFilter === 'no_support') {
+                filtered = allRecords.filter(r => !r.needsSupport);
+            } else if (currentFilter === 'pending') {
+                filtered = allRecords.filter(r => r.status === 'pending');
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="text-center py-5 px-3 text-secondary">該当する相談記録がありません</div>';
+                return;
+            }
+
+            container.innerHTML = filtered.map(record => {
+                const statusClass = `status-${record.status || 'pending'}`;
+                const supportClass = record.needsSupport ? 'support-needed' : 'support-not-needed';
+                const supportText = record.needsSupport ? '心理的相談' : 'その他相談';
+                const statusText = getStatusText(record.status || 'pending');
+                const isPending = (record.status || 'pending') === 'pending';
+
+                return `
+                    <div class="card shadow-sm p-3">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <div class="fs-6 fw-semibold text-dark mb-1">ユーザー：${record.userEmail}</div>
+                                <div class="fs-7 text-secondary">相談日時：${formatDateTime(record.date)}</div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <span class="support-badge ${supportClass}">${supportText}</span>
+                                <span class="status-badge ${statusClass}">${statusText}</span>
+                            </div>
+                        </div>
+                        <div class="fs-6 text-secondary lh-base my-3">${record.summary}</div>
+                        <div>
+                            ${isPending ? 
+                                `<button class="action-btn btn-mark-reviewed" onclick="updateStatus('${record.id}', 'reviewed')">
+                                    確認済みにする
+                                </button>` :
+                                `<button class="action-btn btn-mark-pending" onclick="updateStatus('${record.id}', 'pending')">
+                                    未確認に戻す
+                                </button>`
+                            }
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterBy(filter) {
+            currentFilter = filter;
+            
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            displayConsultations();
+        }
+
+        async function updateStatus(recordId, status) {
+            try {
+                await db.collection('staff_consultation_records')
+                    .doc(recordId)
+                    .update({ status: status });
+                
+                loadConsultations();
+            } catch (error) {
+                console.error('Error updating status:', error);
+                alert('エラーが発生しました');
+            }
+        }
+
+        function getStatusText(status) {
+            switch (status) {
+                case 'pending': return '未確認';
+                case 'reviewed': return '確認済み';
+                default: return status;
+            }
+        }
+
+        function formatDateTime(timestamp) {
+            const date = timestamp.toDate();
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            const h = String(date.getHours()).padStart(2, '0');
+            const min = String(date.getMinutes()).padStart(2, '0');
+            return `${y}年${m}月${d}日 ${h}:${min}`;
+        }
+
+        loadConsultations();
+    </script>
+</body>
+</html>

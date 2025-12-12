@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>おやこノート管理画面ログイン</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+</head>
+<body class="bg-light min-vh-100 d-flex justify-content-center align-items-center p-3">
+    <div class="card p-4 shadow" style="max-width:400px; width:100%;">
+        <h1 class="h4 mb-4 text-dark">おやこノート管理画面ログイン</h1>
+
+        <form id="loginForm">
+            <div class="mb-3">
+                <label class="form-label fw-semibold" for="email">メールアドレス</label>
+                <input class="form-control" type="email" id="email" required>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold" for="password">パスワード</label>
+                <input class="form-control" type="password" id="password" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">ログイン</button>
+
+            <div id="error" class="alert alert-danger d-none"></div>
+        </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyC0DOxLZDkCkFA3y0XV63_ljbkams0HFWc",
+            authDomain: "oyakonote-c766a.firebaseapp.com",
+            projectId: "oyakonote-c766a"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        async function isStaffAllowed(uid) {
+            try {
+                const doc = await db.collection('staff').doc(uid).get();
+                return doc.exists && doc.data().active === true;
+            } catch (error) {
+                console.error('Error checking staff:', error);
+                return false;
+            }
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const error = document.getElementById('error');
+            const button = e.target.querySelector('button');
+
+            button.disabled = true;
+            error.classList.add('d-none');
+
+            try {
+                const userCredential = await auth.signInWithEmailAndPassword(email, password);
+                
+                const allowed = await isStaffAllowed(userCredential.user.uid);
+                
+                if (!allowed) {
+                    await auth.signOut();
+                    error.textContent = 'このアカウントではログインできません';
+                    error.classList.remove('d-none');
+                    button.disabled = false;
+                    return;
+                }
+
+                sessionStorage.setItem('staffLoggedIn', 'true');
+                sessionStorage.setItem('staffEmail', userCredential.user.email);
+                window.location.href = 'userlist.html';
+                
+            } catch (err) {
+                error.textContent = 'ログインに失敗しました';
+                error.classList.remove('d-none');
+                button.disabled = false;
+            }
+        });
+
+    </script>
+</body>
+</html>
